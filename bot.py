@@ -8,10 +8,10 @@ from datetime import date
 
 # ================= CONFIG =================
 
-TOKEN = os.getenv("TOKEN")  # set in host (Railway)
-APP_ID = 730                # CS2
-CURRENCY = 3                # EUR
-MIN_LISTINGS = 1           # stability rule
+TOKEN = os.getenv("TOKEN")
+APP_ID = 730
+CURRENCY = 3
+MIN_LISTINGS = 1
 
 DATA_FILE = "data.json"
 
@@ -24,6 +24,9 @@ tree = app_commands.CommandTree(client)
 # ================= HELPERS =================
 
 def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {"alerts": [], "daily": []}
+
     with open(DATA_FILE, "r") as f:
         return json.load(f)
 
@@ -98,37 +101,14 @@ async def csfloat_check(item, target_price, direction):
 
 async def should_trigger(alert):
     if alert["source"] == "steam":
-        return await steam_check(
-            alert["item"],
-            alert["price"],
-            alert["direction"]
-        )
+        return await steam_check(alert["item"], alert["price"], alert["direction"])
     else:
-        return await csfloat_check(
-            alert["item"],
-            alert["price"],
-            alert["direction"]
-        )
+        return await csfloat_check(alert["item"], alert["price"], alert["direction"])
 
-# ================= SLASH COMMANDS =================
 
-@tree.command(name="track", description="Track a CS2 skin price")
-@app_commands.describe(
-    item="Market hash name (exact)",
-    source="steam or csfloat",
-    direction="below or above",
-    price="Target price in EUR"
-)
-@app_commands.choices(
-    source=[
-        app_commands.Choice(name="Steam Market", value="steam"),
-        app_commands.Choice(name="CSFloat", value="csfloat")
-    ],
-    direction=[
-        app_commands.Choice(name="Below", value="below"),
-        app_commands.Choice(name="Above", value="above")
-    ]
-)
+# ================= COMMANDS =================
+
+@tree.command(name="track")
 async def track(interaction: discord.Interaction, item: str, source: str, direction: str, price: float):
     data = load_data()
 
@@ -143,26 +123,10 @@ async def track(interaction: discord.Interaction, item: str, source: str, direct
 
     save_data(data)
 
-    arrow = "⬇️" if direction == "below" else "⬆️"
-
-    await interaction.response.send_message(
-        f"{interaction.user.mention} {arrow} Tracking **{item}**\n"
-        f"Source: **{source}** | Target: **€{price}**\n"
-        f"Trigger rule: **{MIN_LISTINGS}+ listings**"
-    )
+    await interaction.response.send_message(f"Tracking {item}")
 
 
-@tree.command(name="daily", description="Daily CS2 skin price updates")
-@app_commands.choices(
-    source=[
-        app_commands.Choice(name="Steam Market", value="steam"),
-        app_commands.Choice(name="CSFloat", value="csfloat")
-    ],
-    mode=[
-        app_commands.Choice(name="On", value="on"),
-        app_commands.Choice(name="Off", value="off")
-    ]
-)
+@tree.command(name="daily")
 async def daily(interaction: discord.Interaction, item: str, source: str, mode: str):
     data = load_data()
 
@@ -174,92 +138,92 @@ async def daily(interaction: discord.Interaction, item: str, source: str, mode: 
             "source": source,
             "last_sent": None
         })
-        msg = "📅 Daily updates enabled."
-
     else:
         data["daily"] = [
             d for d in data["daily"]
             if not (d["user"] == interaction.user.id and d["item"] == item)
         ]
-        msg = "❌ Daily updates disabled."
 
     save_data(data)
-    await interaction.response.send_message(f"{interaction.user.mention} {msg}")
+    await interaction.response.send_message("Updated")
 
-
-@tree.command(name="list", description="List your alerts and daily subscriptions")
-async def list_cmd(interaction: discord.Interaction):
-    data = load_data()
-
-    alerts = [
-        f"• {a['item']} ({a['source']} {a['direction']} €{a['price']})"
-        for a in data["alerts"] if a["user"] == interaction.user.id
-    ]
-
-    daily = [
-        f"• {d['item']} ({d['source']})"
-        for d in data["daily"] if d["user"] == interaction.user.id
-    ]
-
-    msg = "**📌 Alerts:**\n" + ("\n".join(alerts) or "None")
-    msg += "\n\n**📅 Daily:**\n" + ("\n".join(daily) or "None")
-
-    await interaction.response.send_message(msg)
 
 # ================= BACKGROUND TASKS =================
 
 @tasks.loop(minutes=1)
 async def alert_loop():
+    print("Alert loop running")
+
     data = load_data()
 
     for alert in data["alerts"][:]:
-        triggered, price, count = await should_trigger(alert)
+        try:
+            triggered, price, count = await should_trigger(alert)
 
-        if triggered:
-            channel = client.get_channel(alert["channel"])
-            if channel:
+            if triggered:
+                channel = await client.fetch_channel(alert["channel"])
+
                 await channel.send(
-                    f"<@{alert['user']}> 🚨 **PRICE ALERT**\n"
-                    f"**{alert['item']}** ({alert['source']})\n"
-                    f"Price: **€{price}**\n"
-                    f"Listings meeting rule: **{count}**"
+                    f"<@{alert['user']}> 🚨 PRICE ALERT\n"
+                    f"{alert['item']} ({alert['source']})\n"
+                    f"€{price} | listings: {count}"
                 )
 
-            data["alerts"].remove(alert)
+                data["alerts"].remove(alert)
+
+        except Exception as e:
+            print("Alert error:", e)
 
     save_data(data)
+
+
+@alert_loop.before_loop
+async def before_alert_loop():
+    await client.wait_until_ready()
 
 
 @tasks.loop(minutes=1)
 async def daily_loop():
+    print("Daily loop running")
+
     today = date.today().isoformat()
     data = load_data()
 
     for d in data["daily"]:
-        if d["last_sent"] == today:
-            continue
+        try:
+            if d["last_sent"] == today:
+                continue
 
-        alert = {
-            "item": d["item"],
-            "source": d["source"],
-            "direction": "below",
-            "price": float("inf")
-        }
+            alert = {
+                "item": d["item"],
+                "source": d["source"],
+                "direction": "below",
+                "price": float("inf")
+            }
 
-        _, price, count = await should_trigger(alert)
-        channel = client.get_channel(d["channel"])
+            _, price, count = await should_trigger(alert)
 
-        if channel and price:
-            await channel.send(
-                f"<@{d['user']}> 📊 **Daily Price Update**\n"
-                f"**{d['item']}** ({d['source']})\n"
-                f"Lowest price: **€{price}**\n"
-                f"Listings checked: **{count}**"
-            )
+            if price:
+                channel = await client.fetch_channel(d["channel"])
 
-            d["last_sent"] = today
+                await channel.send(
+                    f"<@{d['user']}> 📊 Daily Update\n"
+                    f"{d['item']} ({d['source']})\n"
+                    f"€{price} | listings checked: {count}"
+                )
+
+                d["last_sent"] = today
+
+        except Exception as e:
+            print("Daily error:", e)
 
     save_data(data)
+
+
+@daily_loop.before_loop
+async def before_daily_loop():
+    await client.wait_until_ready()
+
 
 # ================= STARTUP =================
 
@@ -267,15 +231,10 @@ async def daily_loop():
 async def on_ready():
     print(f"Logged in as {client.user}")
 
-    if not alert_loop.is_running():
-        alert_loop.start()
+    await tree.sync()
 
-    if not daily_loop.is_running():
-        daily_loop.start()
+    alert_loop.start()
+    daily_loop.start()
+
 
 client.run(TOKEN)
-
-
-
-
-
