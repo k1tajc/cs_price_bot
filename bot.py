@@ -230,7 +230,7 @@ async def alert_loop():
     save_data(data)
 
 
-@tasks.loop(hours=24)
+@tasks.loop(minutes=1)
 async def daily_loop():
     today = date.today().isoformat()
     data = load_data()
@@ -271,5 +271,6 @@ async def on_ready():
     print(f"Logged in as {client.user}")
 
 client.run(TOKEN)
+
 
 
