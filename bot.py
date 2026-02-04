@@ -6,8 +6,6 @@ from discord.ext import tasks
 from discord import app_commands
 from datetime import date
 
-# ================= CONFIG =================
-
 TOKEN = os.getenv("TOKEN")
 APP_ID = 730
 CURRENCY = 3
@@ -15,13 +13,11 @@ MIN_LISTINGS = 1
 
 DATA_FILE = "data.json"
 
-# ==========================================
-
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-# ================= HELPERS =================
+# ================= DATA =================
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -34,7 +30,7 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-# ================= PRICE FETCHERS =================
+# ================= PRICE =================
 
 async def steam_check(item, target_price, direction):
     url = "https://steamcommunity.com/market/priceoverview/"
@@ -105,11 +101,21 @@ async def should_trigger(alert):
     else:
         return await csfloat_check(alert["item"], alert["price"], alert["direction"])
 
-
 # ================= COMMANDS =================
 
-@tree.command(name="track")
+@tree.command(name="track", description="Track skin price")
+@app_commands.choices(
+    source=[
+        app_commands.Choice(name="Steam", value="steam"),
+        app_commands.Choice(name="CSFloat", value="csfloat")
+    ],
+    direction=[
+        app_commands.Choice(name="Below", value="below"),
+        app_commands.Choice(name="Above", value="above")
+    ]
+)
 async def track(interaction: discord.Interaction, item: str, source: str, direction: str, price: float):
+
     data = load_data()
 
     data["alerts"].append({
@@ -123,11 +129,22 @@ async def track(interaction: discord.Interaction, item: str, source: str, direct
 
     save_data(data)
 
-    await interaction.response.send_message(f"Tracking {item}")
+    await interaction.response.send_message(f"Tracking **{item}**")
 
 
-@tree.command(name="daily")
+@tree.command(name="daily", description="Daily updates")
+@app_commands.choices(
+    source=[
+        app_commands.Choice(name="Steam", value="steam"),
+        app_commands.Choice(name="CSFloat", value="csfloat")
+    ],
+    mode=[
+        app_commands.Choice(name="On", value="on"),
+        app_commands.Choice(name="Off", value="off")
+    ]
+)
 async def daily(interaction: discord.Interaction, item: str, source: str, mode: str):
+
     data = load_data()
 
     if mode == "on":
@@ -145,10 +162,9 @@ async def daily(interaction: discord.Interaction, item: str, source: str, mode: 
         ]
 
     save_data(data)
-    await interaction.response.send_message("Updated")
+    await interaction.response.send_message("Daily updated")
 
-
-# ================= BACKGROUND TASKS =================
+# ================= LOOPS =================
 
 @tasks.loop(minutes=1)
 async def alert_loop():
@@ -166,7 +182,7 @@ async def alert_loop():
                 await channel.send(
                     f"<@{alert['user']}> 🚨 PRICE ALERT\n"
                     f"{alert['item']} ({alert['source']})\n"
-                    f"€{price} | listings: {count}"
+                    f"€{price} | listings {count}"
                 )
 
                 data["alerts"].remove(alert)
@@ -178,7 +194,7 @@ async def alert_loop():
 
 
 @alert_loop.before_loop
-async def before_alert_loop():
+async def before_alert():
     await client.wait_until_ready()
 
 
@@ -209,7 +225,7 @@ async def daily_loop():
                 await channel.send(
                     f"<@{d['user']}> 📊 Daily Update\n"
                     f"{d['item']} ({d['source']})\n"
-                    f"€{price} | listings checked: {count}"
+                    f"€{price} | listings checked {count}"
                 )
 
                 d["last_sent"] = today
@@ -221,20 +237,20 @@ async def daily_loop():
 
 
 @daily_loop.before_loop
-async def before_daily_loop():
+async def before_daily():
     await client.wait_until_ready()
 
-
-# ================= STARTUP =================
+# ================= START =================
 
 @client.event
 async def on_ready():
     print(f"Logged in as {client.user}")
 
-    await tree.sync()
+    synced = await tree.sync()
+    print(f"Synced {len(synced)} commands")
 
     alert_loop.start()
     daily_loop.start()
 
-
 client.run(TOKEN)
+
