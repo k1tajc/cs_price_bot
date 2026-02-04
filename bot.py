@@ -229,10 +229,6 @@ async def alert_loop():
 
     save_data(data)
 
-@tasks.loop(minutes=1)
-async def check_prices():
-    print("Checking prices loop running")
-
 
 @tasks.loop(minutes=1)
 async def daily_loop():
@@ -271,14 +267,14 @@ async def daily_loop():
 async def on_ready():
     print(f"Logged in as {client.user}")
 
-    if not check_prices.is_running():
-        check_prices.start()
+    if not alert_loop.is_running():
+        alert_loop.start()
 
-    if not daily_price_update.is_running():
-        daily_price_update.start()
-
+    if not daily_loop.is_running():
+        daily_loop.start()
 
 client.run(TOKEN)
+
 
 
 
