@@ -208,7 +208,7 @@ async def list_cmd(interaction: discord.Interaction):
 
 # ================= BACKGROUND TASKS =================
 
-@tasks.loop(minutes=30)
+@tasks.loop(minutes=1)
 async def alert_loop():
     data = load_data()
 
@@ -271,4 +271,5 @@ async def on_ready():
     print(f"Logged in as {client.user}")
 
 client.run(TOKEN)
+
 
