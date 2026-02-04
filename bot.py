@@ -26,6 +26,7 @@ tree = app_commands.CommandTree(client)
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {"alerts": [], "daily": []}
+        
     with open(DATA_FILE, "r") as f:
         return json.load(f)
 
@@ -33,6 +34,7 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+    print("Saved data:", data)  # DEBUG
 # ================= PRICE =================
 
 async def steam_check(item, target_price, direction):
@@ -125,6 +127,7 @@ async def track(interaction: discord.Interaction, item: str, source: str, direct
     })
 
     save_data(data)
+    print("TRACK COMMAND USED")
 
     await interaction.response.send_message(
         f"✅ Tracking **{item}** ({source}) {direction} €{price}"
@@ -244,3 +247,4 @@ async def on_ready():
     daily_loop.start()
 
 client.run(TOKEN)
+
