@@ -11,7 +11,7 @@ from datetime import date
 TOKEN = os.getenv("TOKEN")  # set in host (Railway)
 APP_ID = 730                # CS2
 CURRENCY = 3                # EUR
-MIN_LISTINGS = 20           # stability rule
+MIN_LISTINGS = 1           # stability rule
 
 DATA_FILE = "data.json"
 
@@ -229,6 +229,10 @@ async def alert_loop():
 
     save_data(data)
 
+@tasks.loop(minutes=1)
+async def check_prices():
+    print("Checking prices loop running")
+
 
 @tasks.loop(minutes=1)
 async def daily_loop():
@@ -265,12 +269,17 @@ async def daily_loop():
 
 @client.event
 async def on_ready():
-    await tree.sync()
-    alert_loop.start()
-    daily_loop.start()
     print(f"Logged in as {client.user}")
 
+    if not check_prices.is_running():
+        check_prices.start()
+
+    if not daily_price_update.is_running():
+        daily_price_update.start()
+
+
 client.run(TOKEN)
+
 
 
 
