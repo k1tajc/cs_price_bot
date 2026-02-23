@@ -5,7 +5,7 @@ import discord
 from discord.ext import tasks
 from discord import app_commands
 from datetime import date
-
+print("FILE STARTED")
 # ================= CONFIG =================
 
 TOKEN = os.getenv("TOKEN")
@@ -245,11 +245,22 @@ async def daily_loop():
 
 @client.event
 async def on_ready():
-    print(f"Logged in as {client.user}")
-    await tree.sync()
-    alert_loop.start()
-    daily_loop.start()
+    print("ON_READY FIRED")
+
+    try:
+        synced = await tree.sync()
+        print(f"Synced {len(synced)} commands")
+    except Exception as e:
+        print("Sync error:", e)
+
+    try:
+        if not alert_loop.is_running():
+            alert_loop.start()
+            print("Alert loop started")
+    except Exception as e:
+        print("Loop start error:", e)
 
 client.run(TOKEN)
+
 
 
