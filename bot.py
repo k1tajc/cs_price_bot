@@ -197,6 +197,8 @@ async def alert_loop():
         triggered, price, count = await should_trigger(alert)
 
         if triggered:
+            print("Listing price:", listing_price)
+            print("Alert price:", alert["price"])
             channel = await client.fetch_channel(alert["channel"])
             await channel.send(
                 f"<@{alert['user']}> 🚨 **PRICE ALERT**\n"
@@ -227,6 +229,8 @@ async def daily_loop():
         _, price, count = await should_trigger(alert)
         channel = await client.fetch_channel(d["channel"])
 
+        print("Listing price:", listing_price)
+        print("Alert price:", alert["price"])
         await channel.send(
             f"<@{d['user']}> 📊 **Daily Price**\n"
             f"{d['item']} ({d['source']})\n"
@@ -247,4 +251,5 @@ async def on_ready():
     daily_loop.start()
 
 client.run(TOKEN)
+
 
