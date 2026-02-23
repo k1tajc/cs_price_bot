@@ -192,7 +192,15 @@ async def list_cmd(interaction: discord.Interaction):
 @tasks.loop(minutes=1)
 async def alert_loop():
     data = load_data()
+    
+print("ALERT LOOP TICK START")
 
+try:
+    # everything inside loop
+    print("ALERT LOOP TICK END")
+except Exception as e:
+    print("LOOP ERROR:", e)
+    
     for alert in data["alerts"][:]:
         triggered, price, count = await should_trigger(alert)
 
@@ -261,6 +269,7 @@ async def on_ready():
         print("Loop start error:", e)
 
 client.run(TOKEN)
+
 
 
 
