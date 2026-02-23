@@ -1,4 +1,4 @@
-import os
+import osa
 import json
 import aiohttp
 import discord
@@ -193,10 +193,6 @@ async def list_cmd(interaction: discord.Interaction):
 async def alert_loop():
     data = load_data()
 
-if not client.is_ready():
-    print("Client not ready, skipping")
-    return
-    
     for alert in data["alerts"][:]:
         triggered, price, count = await should_trigger(alert)
 
@@ -218,7 +214,12 @@ try:
     print("ALERT LOOP TICK END")
 except Exception as e:
     print("LOOP ERROR:", e)
-    
+
+    if not client.is_ready():
+    print("Client not ready, skipping")
+    return
+
+
     save_data(data)
 
 
@@ -226,10 +227,6 @@ except Exception as e:
 async def daily_loop():
     today = date.today().isoformat()
     data = load_data()
-
-if not client.is_ready():
-    print("Client not ready, skipping")
-    return
     
     for d in data["daily"]:
         if d["last_sent"] == today:
@@ -255,6 +252,11 @@ if not client.is_ready():
 
         d["last_sent"] = today
 
+        
+if not client.is_ready():
+    print("Client not ready, skipping")
+    return
+    
     save_data(data)
 
 # ================= STARTUP =================
@@ -277,6 +279,7 @@ async def on_ready():
         print("Loop start error:", e)
 
 client.run(TOKEN)
+
 
 
 
