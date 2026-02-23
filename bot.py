@@ -192,6 +192,10 @@ async def list_cmd(interaction: discord.Interaction):
 @tasks.loop(minutes=1)
 async def alert_loop():
     data = load_data()
+
+if not client.is_ready():
+    print("Client not ready, skipping")
+    return
     
     for alert in data["alerts"][:]:
         triggered, price, count = await should_trigger(alert)
@@ -223,6 +227,10 @@ async def daily_loop():
     today = date.today().isoformat()
     data = load_data()
 
+if not client.is_ready():
+    print("Client not ready, skipping")
+    return
+    
     for d in data["daily"]:
         if d["last_sent"] == today:
             continue
